@@ -1,88 +1,77 @@
-# configured aws provider with proper credentials
 provider "aws" {
-  region  = "us-east-1"
-  profile = "terraform-user"
+  region = "us-east-1" 
 }
 
 
-# create default vpc if one does not exit
-resource "aws_default_vpc" "default_vpc" {
-
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+  enable_dns_support = true
+  enable_dns_hostnames = true
+  
   tags = {
-    Name = "default vpc"
+    Name = "MyVPC"
   }
 }
 
 
-# use data source to get all avalablility zones in region
-data "aws_availability_zones" "available_zones" {}
-
-
-# create default subnet if one does not exit
-resource "aws_default_subnet" "default_az1" {
-  availability_zone = data.aws_availability_zones.available_zones.names[0]
-
+resource "aws_subnet" "subnet_public" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
   tags = {
-    Name = "default subnet"
+    Name = "PublicSubnet"
   }
 }
 
 
-# create security group for the ec2 instance
-resource "aws_security_group" "ec2_security_group" {
-  name        = "ec2 security group"
-  description = "allow access on ports 80 and 22"
-  vpc_id      = 
-
-  ingress {
-    description = "http access"
-    from_port   = 
-    to_port     = 
-    protocol    = 
-    cidr_blocks = 
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "MyInternetGateway"
   }
+}
 
-  ingress {
-    description = "ssh access"
-    from_port   = 
-    to_port     = 
-    protocol    = 
-    cidr_blocks = 
+
+resource "aws_route_table" "rtable" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "PublicRouteTable"
   }
+}
+
+resource "aws_route" "public_route" {
+  route_table_id         = aws_route_table.rtable.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.igw.id
+}
+
+resource "aws_route_table_association" "rta" {
+  subnet_id      = aws_subnet.subnet_public.id
+  route_table_id = aws_route_table.rtable.id
+}
+
+
+resource "aws_security_group" "sec_group" {
+  vpc_id = aws_vpc.main.id
 
   egress {
-    from_port   = 
-    to_port     = 
-    protocol    = 
-    cidr_blocks = 
+    cidr_blocks = ["0.0.0.0/0"]
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+  }
+
+  ingress {
+    cidr_blocks = ["0.0.0.0/0"]
+    from_port   = 22  # Allow SSH
+    to_port     = 22
+    protocol    = "tcp"
   }
 
   tags = {
-    Name = "docker server sg"
-  }
-}
-
-# launch the ec2 instance
-resource "aws_instance" "ec2_instance" {
-  ami                    = 
-  instance_type          = 
-  subnet_id              = 
-  vpc_security_group_ids = 
-  key_name               = 
-
-  tags = {
-    Name = "docker server"
+    Name = "MySecurityGroup"
   }
 }
 
 
-# an empty resource block
-resource "null_resource" "name" {
-
-  # ssh into the ec2 instance 
-  connection {
-    type        = 
-    user        = 
-    private_key = file()
-    host        = 
-  }
